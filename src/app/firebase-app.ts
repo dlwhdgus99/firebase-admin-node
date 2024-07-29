@@ -40,6 +40,8 @@ export interface FirebaseAccessToken {
 export class FirebaseAppInternals {
   private cachedToken_: FirebaseAccessToken;
   private tokenListeners_: Array<(token: string) => void>;
+  private isRefreshing_: boolean;
+  private promiseToCachedToken_: Promise<FirebaseAccessToken>
 
   // eslint-disable-next-line @typescript-eslint/naming-convention
   constructor(private credential_: Credential) {
@@ -48,7 +50,10 @@ export class FirebaseAppInternals {
 
   public getToken(forceRefresh = false): Promise<FirebaseAccessToken> {
     if (forceRefresh || this.shouldRefresh()) {
-      return this.refreshToken();
+      if (!this.isRefreshing_) {
+        this.promiseToCachedToken_ = this.refreshToken();
+      }
+      return this.promiseToCachedToken_;
     }
 
     return Promise.resolve(this.cachedToken_);
@@ -59,6 +64,7 @@ export class FirebaseAppInternals {
   }
 
   private refreshToken(): Promise<FirebaseAccessToken> {
+    this.isRefreshing_ = true;
     return Promise.resolve(this.credential_.getAccessToken())
       .then((result) => {
         // Since the developer can provide the credential implementation, we want to weakly verify
@@ -108,6 +114,9 @@ export class FirebaseAppInternals {
         }
 
         throw new FirebaseAppError(AppErrorCodes.INVALID_CREDENTIAL, errorMessage);
+      })
+      .finally(() => {
+        this.isRefreshing_ = false;
       });
   }
 
